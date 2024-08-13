@@ -1,4 +1,5 @@
 #include "pico/stdlib.h"
+#include "cpp_wifidriver.cpp"
 #include <cstdio> // Include the C standard IO functions
 
 int main() {
