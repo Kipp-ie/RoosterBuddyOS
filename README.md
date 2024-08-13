@@ -10,7 +10,7 @@ Our goal:
 Create a small battery powered device with a raspberry pi pico and a screen.
 
 How will we achieve this goal?
-Making alot of prototypes.
+Making alot of prototypes. Dipping our toes in C++ on pi pico. And also by having fun :)
 
 What will we need?
 - A screen
@@ -26,4 +26,6 @@ maybe more components later.
 
 Sketch:
 you can find the sketch in the folder Assets/sketch.png
+(Not the best sketch but you should get the idea :)
+
 
