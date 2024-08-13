@@ -1,59 +1,139 @@
-#include <stdio.h>
-#include <inttypes.h>
-#include "pico/stdlib.h"
-#include "pico/time.h"
-#include "wifi/wifi.cpp"
+#include "wifi.hpp"
 
-const char SSID[] = "YOUR_SSID";
-const char PSSW[] = "YOUR_PASSWORD";
-const uint64_t AUTH = CYW43_AUTH_WPA2_AES_PSK;
+WiFi::WiFi(){
+    _init = cyw43_arch_init();
+    if(_init == 0) cyw43_arch_enable_sta_mode();
+}
 
-#define WIFI_TIMEOUT 15000
+bool WiFi::init(){
+    return _init == 0;
+}
 
-int main() {
-    stdio_init_all();
-    sleep_ms(5000);
+void WiFi::deinit(){
+    cyw43_arch_deinit();
+    _init = 0;
+}
 
-    WiFi wireless;
-    if(!wireless.init()){
-        printf("WiFi failed to initialize!\n");
-        return 1;
-    } else printf("WiFi initialized successfully!\n");
+int WiFi::status(){
+    if(!init()) return WiFiStatus::NOT_INIT;
+    return cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+}
 
-    printf("WiFi: Link status - %s\n", wireless.statusAsString().c_str());
-    printf("WiFi: Local IP - %s\n", wireless.localIP().toString().c_str());
+string WiFi::statusAsString(){
+    int state = status();
+    switch(state){
+        case WiFiStatus::NOT_INIT:
+            return "NOT_INIT";
+        case WiFiStatus::OFFLINE:
+            return "OFFLINE";
+        case WiFiStatus::JOINED:
+            return "JOINED";
+        case WiFiStatus::NO_INTERNET:
+            return "NO_INTERNET";
+        case WiFiStatus::CONNECTED:
+            return "CONNECTED";
+        case WiFiStatus::CONNECT_FAILED:
+            return "CONNECT_FAILED";
+        case WiFiStatus::NOTFOUND:
+            return "NOTFOUND";
+        case WiFiStatus::AUTH_FAILED:
+            return "AUTH_FAILED";
+        default:
+            return "UNKNOWN";
+    }
+}
 
-    printf("Attempting to connect...\n");
-    if(!wireless.connect(SSID, PSSW, AUTH, WIFI_TIMEOUT)){
-        printf("Connection attempt failed! - %s\n", wireless.statusAsString().c_str());
-        goto end;
-    } else printf("WiFi Connected!\n");
+void WiFi::setLED(bool s){
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, (int)s);
+}
 
-    printf("WiFi: Link status - %s\n", wireless.statusAsString().c_str());
-    printf("WiFi: Local IP - %s\n", wireless.localIP().toString().c_str());
+bool WiFi::connect(const char* ssid, const char* psswd, uint32_t auth, uint32_t timeout){
+    if(!init() || status() != WiFiStatus::OFFLINE) return false;
+    if(cyw43_arch_wifi_connect_async(ssid, psswd, auth) != 0) return false;
+    uint32_t start = UPTIME();
 
-    printf("Sleeping...\n");
-    sleep_ms(2000);
-    if(wireless.status() != WiFiStatus::CONNECTED){
-        printf("Connection lost (%s)!\n", wireless.statusAsString().c_str());
-        goto end;
-    } else printf("WiFi still connected!\n");
+    while((status() != WiFiStatus::CONNECTED) && (UPTIME() - start <= timeout)){
+        sleep_ms(200);
+    }
 
-    printf("WiFi: Link status - %s\n", wireless.statusAsString().c_str());
-    printf("WiFi: Local IP - %s\n", wireless.localIP().toString().c_str());
+    return status() == WiFiStatus::CONNECTED;
+}
 
-    printf("Disconnecting...\n");
-    if(!wireless.disconnect(true)){
-        printf("Failed to disconnect!\n");
-        goto end;
-    } else printf("WiFi Disconnected!\n");
+bool WiFi::disconnect(bool block){
+    if(!init() || status() != WiFiStatus::CONNECTED) return false;
+    int error = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
+    if(!block){
+        return error == 0;
+    } else {
+        while(status() == WiFiStatus::CONNECTED){
+            sleep_ms(200);
+        }
+        return true;
+    }
+}
 
-    printf("WiFi: Link status - %s\n", wireless.statusAsString().c_str());
-    printf("WiFi: Local IP - %s\n", wireless.localIP().toString().c_str());
+IPAddress WiFi::localIP(){
+    if(!init() || status() == WiFiStatus::OFFLINE) return IPAddress(0, 0, 0, 0);
+    const ip4_addr_t* ip_stat = netif_ip4_addr(netif_list);
+    return IPAddress(ip_stat);
+}
 
-    printf("Done. Bye!\n");
+int WiFi::_scanCallback(void* self, const cyw43_ev_scan_result_t* result){
+    WiFi* _self = (WiFi*)self;
+    printf("[WiFi Scan] Got beacon from: %s\n", result->ssid);
 
-    end:
-        wireless.deinit();
-        return 0;
+    if(result){
+        cyw43_ev_scan_result_t network;
+        memcpy(&network, result, sizeof(network));
+        _self->scanResult.push_back(network);
+    }
+    return 1;
+}
+
+bool WiFi::scanCleanHelper(uint8_t bssid[8]){
+    int count = 0;
+    for(cyw43_ev_scan_result_t network : scanResult){
+        if(memcmp(network.bssid, bssid, 8) == 0){
+            count++;
+        }
+    }
+    return count > 1;
+}
+
+void WiFi::cleanupScan(){
+    WiFiScanResults::iterator it = scanResult.begin();
+    while(it != scanResult.end()){
+        bool duplicate = scanCleanHelper(it->bssid);
+        if(duplicate){
+            it = scanResult.erase(it);
+        } else it++;
+    }
+}
+
+WiFiScanResults WiFi::scan(){
+    if(!init() || status() == WiFiStatus::CONNECTED) return {};
+
+    cyw43_wifi_scan_options_t scan_options;
+    memset(&scan_options, 0, sizeof(scan_options));
+    scanResult.clear();
+
+    int error = cyw43_wifi_scan(&cyw43_state, &scan_options, this, _scanCallback);
+    if(error == 0){
+        while(cyw43_wifi_scan_active(&cyw43_state)) sleep_ms(10);
+    } else return {};
+
+    //Remove duplicates
+    cleanupScan();
+
+    return scanResult;
+}
+
+string WiFi::macToString(const uint8_t bssid[6]){
+    char buf[18 /* AB:CD:EF:GH:IJ:KL0 */] = {0};
+    sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
+        bssid[0], bssid[1],
+        bssid[2], bssid[3],
+        bssid[4], bssid[5]
+    );
+    return string(buf);
 }
