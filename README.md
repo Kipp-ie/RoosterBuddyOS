@@ -28,4 +28,7 @@ Sketch:
 you can find the sketch in the folder Assets/sketch.png
 (Not the best sketch but you should get the idea :)
 
+Thanks:
+https://github.com/br0kenpixel/picow-oop-wifidriver For the wifi driver
+
 
