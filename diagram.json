@@ -20,6 +20,22 @@
       "left": -288.85,
       "rotate": 270,
       "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw1",
+      "top": -46.2,
+      "left": -445.3,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 8.8,
+      "left": -459.4,
+      "rotate": 270,
+      "attrs": { "color": "yellow" }
     }
   ],
   "connections": [
@@ -35,7 +51,11 @@
     [ "btn1:1.r", "pico:3V3", "green", [ "v0" ] ],
     [ "btn1:2.l", "pico:GP8", "green", [ "v0", "h-134.6", "v201.6" ] ],
     [ "epd1:DC", "pico:GP27", "green", [ "h0" ] ],
-    [ "epd1:RST", "pico:GP26", "green", [ "h-134.4", "v19.2" ] ]
+    [ "epd1:RST", "pico:GP26", "green", [ "h-134.4", "v19.2" ] ],
+    [ "sw1:2", "pico:GND.4", "green", [ "v0" ] ],
+    [ "sw1:3", "pico:GP0", "green", [ "v0" ] ],
+    [ "led1:C", "pico:GND.4", "green", [ "v0" ] ],
+    [ "led1:A", "pico:GP10", "green", [ "h0" ] ]
   ],
   "dependencies": {}
 }
