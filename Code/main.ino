@@ -1,7 +1,9 @@
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+#include <StreamUtils.h>
 String sensorReadings;
-String serverName = "https://citadelcollege.zportal.nl/api/v3/users/~me&access_token=eeru2jpkkqpegl93s7uq9t37dg";
+String serverName = "http://citadelcollege.zportal.nl/api/v3/users/~me";
 
 void setup() {
     Serial.begin(115200);
@@ -21,22 +23,35 @@ void setup() {
 }
 
 void loop() {
-  if(WiFi.status()== WL_CONNECTED){ //Check WiFi connection status
-    HTTPClient http;
-    String serverpath = serverName;
-    http.begin(serverpath.c_str());
-    int httpResponseCode = http.GET();
-    Serial.print(httpResponseCode);
+  WiFiClientSecure client;  // or WiFiClientSecure for HTTPS
+  HTTPClient http;
 
-    if (httpResponseCode>0) {
-      Serial.print("HTTP Response Code: ");
-      Serial.println(httpResponseCode);
-      String payload = http.getString();
-      Serial.println(payload);
-    } else {
-      Serial.print("Error Code: ");
-      Serial.println(httpResponseCode);
-    }
+// Ask HTTPClient to collect the Transfer-Encoding header
+// (by default, it discards all headers)
+  const char* keys[] = {"Transfer-Encoding"};
+  http.collectHeaders(keys, 1);
 
-    http.end();
-}}
+// Send request
+  http.begin(client, "https://citadelcollege.zportal.nl/api/v3/users/~me");
+  http.addHeader("access_token", "eeru2jpkkqpegl93s7uq9t37dg");
+  http.GET();
+
+// Get the raw and the decoded stream
+  Stream& rawStream = http.getStream();
+  ChunkDecodingStream decodedStream(http.getStream());
+
+// Choose the right stream depending on the Transfer-Encoding header
+  Stream& response =
+    http.header("Transfer-Encoding") == "chunked" ? decodedStream : rawStream;
+
+// Parse response
+  DynamicJsonDocument doc(2048);
+  deserializeJson(doc, response);
+
+// Read values
+  Serial.println(doc.as<long>());
+
+// Disconnect
+  http.end();
+  
+}
