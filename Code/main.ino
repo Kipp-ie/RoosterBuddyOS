@@ -1,5 +1,5 @@
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
-#include <HttpClient.h>
+#include <esp8266httpclient.h>
 
 String serverName = "https://citadelcollege.zportal.nl/api";
 
@@ -21,26 +21,19 @@ void setup() {
 }
 
 void loop() {
-  HttpClient http;
-  String serverPath = serverName + "/v3/users/~me&access_token=kk8j2smb9nv8h19isieds9nku1";
-
-  // Your Domain name with URL path or IP address with path
-  http.begin(serverPath.c_str());
-
-  // If your need Node-RED/server authentication, insert user and password below
-  //http.setAuthorization("REPLACE_WITH_SERVER_USERNAME", "REPLACE_WITH_SERVER_PASSWORD");
-
-  // Send HTTP GET request
-  int httpResponseCode = http.GET();
-  if (httpResponseCode>0) {
-  Serial.print("HTTP Response code: ");
-  Serial.println(httpResponseCode);
-  String payload = http.getString();
-  Serial.println(payload);
+  if(WiFi.status()== WL_CONNECTED){ //Check WiFi connection status
+  
+    HTTPClient http; //Declare an object of class HTTPClient
+    WiFiClient espClient;
+    http.begin(espClient, "https://citadelcollege.zportal.nl/api/v3/users/~me&access_token=kk8j2smb9nv8h19isieds9nku1"); //Specify request destination
+    int httpCode = http.GET(); //Send the request
+    if (httpCode > 0) { //Check the returning code
+      String payload = http.getString(); //Get the request response payload
+      Serial.println(payload); //Print the response payload
+    }
+    http.end(); //Close connection
+  } else {
+    Serial.println("Error in WiFi connection");  
   }
-  else {
-  Serial.print("Error code: ");
-  Serial.println(httpResponseCode);
-  }
-  // put your main code here, to run repeatedly:   
+  delay(30000); //Send a request every 30 seconds
 }
