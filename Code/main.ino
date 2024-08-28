@@ -1,7 +1,7 @@
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
-#include <esp8266httpclient.h>
-
-String serverName = "https://citadelcollege.zportal.nl/api";
+#include <ESP8266HTTPClient.h>
+String sensorReadings;
+String serverName = "https://citadelcollege.zportal.nl/api/v3/users/~me&access_token=eeru2jpkkqpegl93s7uq9t37dg";
 
 void setup() {
     Serial.begin(115200);
@@ -22,18 +22,21 @@ void setup() {
 
 void loop() {
   if(WiFi.status()== WL_CONNECTED){ //Check WiFi connection status
-  
-    HTTPClient http; //Declare an object of class HTTPClient
-    WiFiClient espClient;
-    http.begin(espClient, "https://citadelcollege.zportal.nl/api/v3/users/~me&access_token=kk8j2smb9nv8h19isieds9nku1"); //Specify request destination
-    int httpCode = http.GET(); //Send the request
-    if (httpCode > 0) { //Check the returning code
-      String payload = http.getString(); //Get the request response payload
-      Serial.println(payload); //Print the response payload
+    HTTPClient http;
+    String serverpath = serverName;
+    http.begin(serverpath.c_str());
+    int httpResponseCode = http.GET();
+    Serial.print(httpResponseCode);
+
+    if (httpResponseCode>0) {
+      Serial.print("HTTP Response Code: ");
+      Serial.println(httpResponseCode);
+      String payload = http.getString();
+      Serial.println(payload);
+    } else {
+      Serial.print("Error Code: ");
+      Serial.println(httpResponseCode);
     }
-    http.end(); //Close connection
-  } else {
-    Serial.println("Error in WiFi connection");  
-  }
-  delay(30000); //Send a request every 30 seconds
-}
+
+    http.end();
+}}
